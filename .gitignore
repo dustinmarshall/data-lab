@@ -1,0 +1,6 @@
+.ipynb_checkpoints/
+.env
+.vscode/
+.venv/
+.DS_Store
+.streamlit/
