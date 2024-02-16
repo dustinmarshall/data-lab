@@ -6,7 +6,7 @@ import ast
 import cohere
 from pinecone import Pinecone
 import json
-from tenacity import retry, wait_random_exponential, stop_after_attempt
+#from tenacity import retry, wait_random_exponential, stop_after_attempt
 
 # Set up Streamlit page title and subheader
 st.title("AgriFood Data Lab")
@@ -41,7 +41,7 @@ def click_button():
     st.session_state.clicked = True
 
 # Define function to call Embedding API and return embedding
-@retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
+#@retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
 def get_embedding(text, model=EMBEDDING_MODEL):
     return client.embeddings.create(input = [text], model=model).data[0].embedding
 
@@ -107,7 +107,7 @@ def get_embedding(text, model=EMBEDDING_MODEL):
 #        )
 
 # Define function to query PineCone API and return top k matches
-@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
+#@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
 def query_pinecone_index(embedding, top_k=5, include_metadata=True, include_values=False):
     # Query the knowledge base index
     top_k_matches = index.query(
@@ -334,7 +334,7 @@ def call_tool(tool_call, functions):
     return results
 
 # Define function to call Chat Completion API with function and return response
-@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
+#@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
 def chat_completion_with_function(messages, tools, tool_choice, model, functions):
     # Try to call Chat Completion API to generate response
     try:
@@ -817,13 +817,9 @@ elif len(st.session_state.messages) == 5 and st.session_state.clicked and st.ses
                 more about any of these matches or search for something else?"""
             }
         )
-print(len(st.session_state.messages))
-print(st.session_state.messages)
-if len(st.session_state.messages) > 1:
-    print(st.session_state.messages[-2]["content"].endswith("else?"))
+
 # If the last message ends with the assistant asking for more details, call the get_more_information function
 if len(st.session_state.messages) > 6 and st.session_state.messages[-2]["content"].endswith("else?"):
-    print("TEST")
     # Insert the system prompt to the chat history
     st.session_state.messages.insert(0, {
         "role": "system", 
