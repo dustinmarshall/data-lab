@@ -6,7 +6,9 @@ import ast
 import cohere
 from pinecone import Pinecone
 import json
-#from tenacity import retry, wait_random_exponential, stop_after_attempt
+from tenacity import retry, wait_random_exponential, stop_after_attempt
+import logging
+import requests
 
 # Set up Streamlit page title and subheader
 st.title("AgriFood Data Lab")
@@ -43,35 +45,41 @@ def click_button():
 # Define function to call Embedding API and return embedding
 #@retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
 def get_embedding(text, model=EMBEDDING_MODEL):
-    return client.embeddings.create(input = [text], model=model).data[0].embedding
+    try:
+        return client.embeddings.create(input=[text], model=model).data[0].embedding
+    except Exception as e:
+        st.error(f"Failed to get embedding: {e}")
+        # Optionally, log the error for debugging purposes
+        print(f"Error getting embedding for text: {text}. Error: {e}")
+        return None
 
-## Function to download file and upload to OpenAI assistant
+# Function to download file and upload to OpenAI assistant
 #@retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
-#def download_file_upload_to_assistant(id):
-#    
-#    # Get the file URL from Pinecone
-#    file = index.fetch([id])
-#    url = file.vectors[id].metadata["url"]
-#    
-#    # Download the file
-#    with st.spinner(text="Downloading file..."):
-#        try:
-#            response = requests.get(url)
-#            with open('downloaded_file.pdf', 'wb') as file:
-#                file.write(response.content)
-#        except Exception as e:
-#            print("Error:", e)
-#
-#    # Upload the file to OpenAI
-#    with st.spinner(text="Uploading file..."):
-#        try:
-#            client.files.create(
-#                file=open('downloaded_file.pdf', "rb"),
-#                purpose='assistants'
-#            )
-#        except Exception as e:
-#            print("Error:", e)
-#    
+def download_file_upload_to_assistant(id):
+    
+    # Get the file URL from Pinecone
+    file = index.fetch([id])
+    url = file.vectors[id].metadata["url"]
+    
+    # Download the file
+    with st.spinner(text="Downloading file..."):
+        try:
+            response = requests.get(url)
+            with open('downloaded_file.pdf', 'wb') as file:
+                file.write(response.content)
+        except Exception as e:
+            print("Error:", e)
+
+    # Upload the file to OpenAI
+    with st.spinner(text="Uploading file..."):
+        try:
+            client.files.create(
+                file=open('downloaded_file.pdf', "rb"),
+                purpose='assistants'
+            )
+        except Exception as e:
+            print("Error:", e)
+    
 #    # Download file from the provided URL
 #    response = requests.get(url, stream=True)
 #    total_size = int(response.headers.get("content-length", 0))
@@ -98,26 +106,13 @@ def get_embedding(text, model=EMBEDDING_MODEL):
 #        with zipfile.ZipFile(tmp_file_path, 'r') as zip_ref:
 #            zip_ref.extractall(tmp_file_path.replace('.zip', ''))
 #        tmp_file_path = tmp_file_path.replace('.zip', '')
-#    
+#   
 #    # Upload file to OpenAI assistant
 #    with open(tmp_file_path, 'rb') as file_to_upload:
 #        client.files.create(
 #            file=file_to_upload,
 #            purpose='assistants'
 #        )
-
-# Define function to query PineCone API and return top k matches
-#@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
-def query_pinecone_index(embedding, top_k=5, include_metadata=True, include_values=False):
-    # Query the knowledge base index
-    top_k_matches = index.query(
-        top_k=top_k,
-        include_metadata=include_metadata,
-        include_values=include_values,
-        vector=embedding
-    )
-    # Return the top k matches
-    return top_k_matches
 
 ## Function to rerank the top 10 resources using Cohere
 #@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
@@ -133,14 +128,13 @@ def query_pinecone_index(embedding, top_k=5, include_metadata=True, include_valu
 # Define function to generate streamed text response from string
 # https://docs.streamlit.io/knowledge-base/tutorials/build-conversational-apps
 def response_generator(text):
-    response = random.choice(
-        [
-            text
-        ]
-    )
-    for word in response.split():
-        yield word + " "
-        time.sleep(0.1)
+    for segment in text.split('\n'):
+        print(segment)
+        for word in segment.split():
+            yield word + " "
+            time.sleep(0.075)
+        yield '  \n'
+        time.sleep(0.05)
 
 # Define function to preselect search filters based on the message history
 def preselect_search_filters(type=[], year=[], country=[], region=[], implementer=[], subtopic=[]):
@@ -267,22 +261,6 @@ def preselect_search_filters(type=[], year=[], country=[], region=[], implemente
             st.session_state.subtopic
         )
 
-# Define function to get more information on a record from the knowledge base using its id
-def get_more_information(id):
-    # Get the metadata of the record from the knowledge base
-    key = list(index.fetch(ids=[id])['vectors'])[0]
-    metadata = index.fetch(ids=[id])['vectors'][key]['metadata']
-    # Clean up the metadata
-    metadata.pop('short_description', None)
-    metadata.pop('text_to_insert', None)
-    documents = {}
-    for doc in metadata['document(s)']:
-        doc = ast.literal_eval('{' + doc + '}')
-        documents.update(doc)
-    metadata['document(s)'] = documents
-    # Return the metadata
-    return str(metadata)
-
 # Define function to search the knowledge base using a query and selected filters
 def search_knowledge_base(query, type, year, country, region, implementer, subtopic):
     # Get the embedding of the query
@@ -302,18 +280,42 @@ def search_knowledge_base(query, type, year, country, region, implementer, subto
     if subtopic is not []:
         filter_dict["subtopic"] = {"$in": subtopic}
     # Query the knowledge base index
-    top_k_matches = query_pinecone_index(
-        embedding, 
-        top_k=5, 
-        include_metadata=True, 
-        include_values=False
-    )
-    # Extract the metadata from the top k matches
-    top_k_matches_list = []
+    try:
+        top_k_matches = index.query(
+            top_k=5,
+            include_metadata=True,
+            include_values=False,
+            vector=embedding
+        )
+    except Exception as e:
+        st.error("Failed to query the Pinecone index. Please try again later.")
+        print(f"Error querying Pinecone index: {e}")
+        return {"matches": []}
+    # Extract the right metadata from the top k matches
+    match_string = "We used the conversation and selected filters to run an AI-enabled semantic search on our database. Here are the top matches:"
     for match in top_k_matches['matches']:
-        top_k_matches_list.append(match['metadata']['text_to_insert'])
+        metadata = match['metadata']
+        match_string += f"  \n  \n**{metadata['title']} in {metadata['country']}:**  {metadata['description'][:metadata['description'].find('.')+1]} (ID: {match['id']})  \n  \n"
+    match_string += "Would you like to know more about any of these matches or search for something else?"
     # Return the top k matches
-    return top_k_matches_list
+    return match_string
+
+# Define function to get more information on a record from the knowledge base using its id
+def get_more_information(id):
+    # Get the metadata of the record from the knowledge base
+    key = list(index.fetch(ids=[id])['vectors'])[0]
+    metadata = index.fetch(ids=[id])['vectors'][key]['metadata']
+    # Format metadata into markdown string
+    documents = {}
+    for doc in metadata['document(s)']:
+        doc = ast.literal_eval('{' + doc + '}')
+        documents.update(doc)
+    documents_string = ""
+    for key, value in documents.items():
+        documents_string += f" - [{key}]({value})  \n"
+    # convert list of strings into comma-seperated string
+    markdown_string = f"Here's all of the information we have on that record in our database:  \n  \n**Title:** {metadata['title']}  \n **Description:** {metadata['description']}  \n **Type:** use case  \n **Project:** {metadata['project']}  \n **Implementer:** {metadata['implementer']}  \n **Region:** {metadata['region']}  \n **Country:** {metadata['country']}  \n**Document(s):** {documents_string}  \n **Subtopic(s):** {', '.join(metadata['subtopic(s)'])}  \n **Year(s):** {', '.join(metadata['year(s)'])}  \n **Contact(s):** {', '.join(metadata['contact(s)'])}  \n **Project ID:** {metadata['project_id']}  \n  \nWould you like use to analyze any of the linked files or search for something else?"
+    return markdown_string
 
 functions = {
     "preselect_search_filters": preselect_search_filters,
@@ -356,7 +358,16 @@ def chat_completion_with_function(messages, tools, tool_choice, model, functions
         return response
     else:
         print(f"Tool requested, calling function")
-        return call_tool(tool_calls[0], functions)
+        # Extract the function name and arguments from the message
+        function_name = tool_calls[0].function.name
+        function_args = json.loads(tool_calls[0].function.arguments)
+        # Check if the function exists
+        if function_name in functions:
+            # Call the function with the provided arguments
+            results = functions[function_name](**function_args)
+        else:
+            results = f"Error: function {function_name} does not exist"
+        return results
 
 # Define the tools to be used in the conversation
 tools = [
@@ -574,24 +585,24 @@ if "messages" not in st.session_state:
     st.session_state.messages.append(
         {
             "role": "assistant", 
-            "content": "Welcome to the AgriFood Data Lab! Explore agricultural use cases, datasets, and learning resources, with AI-enabled search, retrieval, and analysis capabilities. How can we help you today?"
+            "content": "Welcome to the AgriFood Data Lab!  \n  \nExplore agricultural use cases, datasets, and learning resources, with AI-enabled search, retrieval, and analysis capabilities.  \n  \nHow can we help you today?"
         }
     )
     # Display the assistant welcome message
     with st.chat_message(name="assistant", avatar=img_bytes):
         st.write_stream(
             response_generator(
-                "Welcome to the AgriFood Data Lab! Explore agricultural use cases, datasets, and learning resources, with AI-enabled search, retrieval, and analysis capabilities. How can we help you today?"
+                "Welcome to the AgriFood Data Lab!  \n  \nExplore agricultural use cases, datasets, and learning resources, with AI-enabled search, retrieval, and analysis capabilities.  \n  \nHow can we help you today?"
             )
         )
 
 # Rerun the Streamlit chat if already initialized
 elif "messages" in st.session_state:
-    for message in st.session_state.messages:
+    for message in st.session_state.messages: 
         # Redisplay the user and assistant chat messages (without streaming effect)
         if message["role"] == "assistant":
             with st.chat_message(name="assistant", avatar=img_bytes):
-                st.markdown(message["content"])
+                st.write(message["content"])
             # Redisplay the filters if the assistant message is about preselecting search filters
             if message["content"] == "Thank you. We've added some optional filters that you can edit to help us narrow down your search.":
                 with st.chat_message(name="user", avatar=img_bytes_black):
@@ -710,9 +721,11 @@ elif "messages" in st.session_state:
                             ],
                             st.session_state.subtopic
                         )
+                    # Redisplay (persistent) search button that triggers the assistant response
+                    st.button("Search", on_click=click_button)
         else:
             with st.chat_message(name="user", avatar=img_bytes_black):            
-                st.markdown(message["content"])                    
+                st.write(message["content"])                    
 
 # Add Streamlit chat user input
 if prompt := st.chat_input("Type your reply here..."):
@@ -720,10 +733,10 @@ if prompt := st.chat_input("Type your reply here..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     # Display the user message
     with st.chat_message("user", avatar=img_bytes_black):
-        st.markdown(prompt)
+        st.write(prompt)
 
 # Add Streamlit chat assistant response asking for more details
-if len(st.session_state.messages) == 2 and st.session_state.messages[-2]["content"] == "Welcome to the AgriFood Data Lab! Explore agricultural use cases, datasets, and learning resources, with AI-enabled search, retrieval, and analysis capabilities. How can we help you today?":
+if len(st.session_state.messages) == 2 and st.session_state.messages[-2]["content"] == "Welcome to the AgriFood Data Lab!  \n  \nExplore agricultural use cases, datasets, and learning resources, with AI-enabled search, retrieval, and analysis capabilities.  \n  \nHow can we help you today?":
     # Add the assistant message to the chat history
     st.session_state.messages.append(
         {
@@ -733,7 +746,7 @@ if len(st.session_state.messages) == 2 and st.session_state.messages[-2]["conten
     )
     # Display the assistant message (with streaming effect)
     with st.chat_message("assistant", avatar=img_bytes):
-            st.write_stream(
+            st.write(
                 response_generator(
                     "Could you describe what you're looking for to us in more detail?"
                 )
@@ -781,7 +794,7 @@ elif len(st.session_state.messages) == 5 and st.session_state.clicked and st.ses
     with st.chat_message("assistant", avatar=img_bytes):
         # Search the knowledge base using the query and selected filters (currently not using the filters, only the query)
         with st.spinner("Searching database..."):           
-            matches = search_knowledge_base(
+            match_string = search_knowledge_base(
                 query=st.session_state.messages[-2]["content"],
                 type=[],
                 year=[],
@@ -793,28 +806,14 @@ elif len(st.session_state.messages) == 5 and st.session_state.clicked and st.ses
         # Display the matches (with streaming effect)    
         st.write_stream(
                 response_generator(
-                    "We used the conversation and selected filters to run an AI-enabled semantic search on our database. Here are the top matches:"
+                    match_string
                 )
             )
-        for match in matches:
-            st.write_stream(
-                    response_generator(
-                        match
-                    )
-                )
-        st.write_stream(
-            response_generator(
-                "Would you like to know more about any of these matches or search for something else?"
-            )
-        )
         # Add the assistant message to the chat history
         st.session_state.messages.append(
             {
                 "role": "assistant", 
-                "content": """
-                We used the conversation and selected filters to run an AI-enabled semantic search on our database. 
-                Here are the top matches:  \n  \n""" + "  \n  \n".join(matches) + """  \n  \nWould you like to know 
-                more about any of these matches or search for something else?"""
+                "content": match_string
             }
         )
 
@@ -843,10 +842,31 @@ if len(st.session_state.messages) > 6 and st.session_state.messages[-2]["content
     )
     # Display the assistant message (with streaming effect)
     with st.chat_message("assistant", avatar=img_bytes):
-        st.write_stream(
+        st.write(
             response_generator(
                 response
             )
         )
+
+# If the last message ends with the assistant asking for more details, call the get_more_information function
+if len(st.session_state.messages) > 8 and st.session_state.messages[-2]["content"].endswith("else?"):
+    assistant = client.beta.assistants.create(
+        name="AgriFood Data Lab",
+        instructions="Use the conversation history to call the ",
+        model=GPT_MODEL,
+    )
     
-    
+    # Add the assistant message to the chat history
+    st.session_state.messages.append(
+        {
+            "role": "assistant", 
+            "content": response
+        }
+    )
+    # Display the assistant message (with streaming effect)
+    with st.chat_message("assistant", avatar=img_bytes):
+        st.write(
+            response_generator(
+                response
+            )
+        )  
