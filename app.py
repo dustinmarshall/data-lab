@@ -1,14 +1,24 @@
 from openai import OpenAI
 import streamlit as st
 import time
-import random
 import ast
-import cohere
 from pinecone import Pinecone
 import json
-from tenacity import retry, wait_random_exponential, stop_after_attempt
-import logging
 import requests
+from settings import (
+    OPENAI_API_KEY,
+    PINECONE_API_KEY,
+    PINECONE_INDEX,
+    PINECONE_ENVIRONMENT,
+    EMBEDDING_MODEL,
+    LLM_MODEL,
+    REGIONS,
+    COUNTRIES,
+    YEARS,
+    TYPES,
+    ORGANIZATIONS,
+    TOPICS,
+)
 
 # Set up Streamlit page title and subheader
 st.title("AgriFood Data Lab")
@@ -16,13 +26,11 @@ st.subheader("Discover agricultural learning, use case, and dataset resources, w
 st.markdown("---")
 
 # Initialize OpenAI and Pinecone clients
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-pc = Pinecone(api_key=st.secrets["PINECONE_API_KEY"], environment="gcp-starter")
-
-# Initialize OpenAI models and Pinecone index
-GPT_MODEL = "gpt-3.5-turbo-0125"
-EMBEDDING_MODEL = "text-embedding-3-small"
-PINECONE_INDEX = "agrifooddatalab-index"
+client = OpenAI(api_key=OPENAI_API_KEY)
+pc = Pinecone(
+    api_key=PINECONE_API_KEY, 
+    environment=PINECONE_ENVIRONMENT,
+)
 
 # Connect to Pinecone index
 index = pc.Index(PINECONE_INDEX)
@@ -43,7 +51,6 @@ def click_button():
     st.session_state.clicked = True
 
 # Define function to call Embedding API and return embedding
-#@retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
 def get_embedding(text, model=EMBEDDING_MODEL):
     try:
         return client.embeddings.create(input=[text], model=model).data[0].embedding
@@ -54,7 +61,6 @@ def get_embedding(text, model=EMBEDDING_MODEL):
         return None
 
 # Function to download file and upload to OpenAI assistant
-#@retry(wait=wait_random_exponential(min=1, max=40), stop=stop_after_attempt(3))
 def download_file_upload_to_assistant(id):
     
     # Get the file URL from Pinecone
@@ -79,51 +85,6 @@ def download_file_upload_to_assistant(id):
             )
         except Exception as e:
             print("Error:", e)
-    
-#    # Download file from the provided URL
-#    response = requests.get(url, stream=True)
-#    total_size = int(response.headers.get("content-length", 0))
-#    print(total_size)
-#    block_size = 1024
-#    
-#    # Add streamlit progress bar for downloading file
-#    progress_bar = st.progress(0)
-#    progress_value = 0
-#
-#    # Create a temporary file to store the downloaded file
-#    with tempfile.NamedTemporaryFile(delete=False, mode='wb') as temp_file:
-#        tmp_file_path = temp_file.name  # This is the path to the temporary file
-#        print(tmp_file_path)
-#        for data in response.iter_content(block_size):
-#            temp_file.write(data)
-#            progress_value += len(data)
-#            # Update the progress bar
-#            progress_bar.progress(progress_value / total_size)
-#        
-#    # if file is zip, extract all files
-#    if tmp_file_path.endswith('.zip'):
-#        import zipfile
-#        with zipfile.ZipFile(tmp_file_path, 'r') as zip_ref:
-#            zip_ref.extractall(tmp_file_path.replace('.zip', ''))
-#        tmp_file_path = tmp_file_path.replace('.zip', '')
-#   
-#    # Upload file to OpenAI assistant
-#    with open(tmp_file_path, 'rb') as file_to_upload:
-#        client.files.create(
-#            file=file_to_upload,
-#            purpose='assistants'
-#        )
-
-## Function to rerank the top 10 resources using Cohere
-#@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
-#def rerank_rag_matches(query, documents):
-#    st.session_state['conversation'].append("**Assistant:** Reranking results...")
-#    reranked_results = co.rerank(
-#        query=query, 
-#        documents=documents, 
-#        top_n=5, 
-#        model="rerank-multilingual-v2.0")
-#    return reranked_results
 
 # Define function to generate streamed text response from string
 # https://docs.streamlit.io/knowledge-base/tutorials/build-conversational-apps
@@ -137,132 +98,51 @@ def response_generator(text):
         time.sleep(0.05)
 
 # Define function to preselect search filters based on the message history
-def preselect_search_filters(type=[], year=[], country=[], region=[], implementer=[], subtopic=[]):
+def preselect_search_filters(type=[], year=[], country=[], region=[], organization=[], topic=[]):
     global st
     st.session_state.type = type
     st.session_state.year = year
     st.session_state.country = country
     st.session_state.region = region
-    st.session_state.implementer = implementer
-    st.session_state.subtopic = subtopic
+    st.session_state.organization = organization
+    st.session_state.topic = topic
     col1, col2, col3 = st.columns(3)
     with col1:
         st.session_state.type = st.multiselect(
             'Type(s)',
-            [
-                'use case', 
-                'dataset', 
-                'learning'
-            ],
+            TYPES,
             st.session_state.type
         )                
         st.session_state.year = st.multiselect(
             'Year(s)',
-            [
-                '2023', 
-                '2024', 
-                '2025', 
-                '2026', 
-                '2027', 
-                '2028', 
-                '2029', 
-                '2030'
-            ],
+            YEARS,
             st.session_state.year
         )
     with col2:
         st.session_state.country = st.multiselect(
             'Country(s)',
-            [
-                'Ukraine',
-                'Kosovo',
-                'Mauritius',
-                'Tunisia',
-                'Western and Central Africa',
-                'Chad',
-                'Philippines',
-                'Lebanon',
-                'Afghanistan',
-                'Ghana',
-                'Central African Republic',
-                'Turkiye',
-                'Kazakhstan',
-                'Morocco',
-                'China',
-                'Moldova',
-                'Eastern and Southern Africa'
-            ],
+            COUNTRIES,
             st.session_state.country
         )
         st.session_state.region = st.multiselect(
             'Region(s)',
-            [
-                'Europe and Central Asia',
-                'Eastern and Southern Africa',
-                'Middle East and North Africa',
-                'Western and Central Africa',
-                'East Asia and Pacific',
-                'South Asia'
-            ],
+            REGIONS,
             st.session_state.region
         )
     with col3:
-        st.session_state.implementer = st.multiselect(
-            'Implementer(s)',
-            [
-                'Ministry of Agrarian Policy and Food, Business Development Fund',
-                'Ministry of Agriculture, Forestry and Rural Development',
-                'Airports of Mauritius Co. Ltd (AML), Airport of Rodrigues Limited (ARL)',
-                'Office des Céréales',
-                'Ministry of Agriculture - Niger, Ministry of Agriculture, Hydro-Agricultural Developments and Mechanization  - Burkina Faso, Ministry of Rural Development - Mali, Ministry of Agriculture, Livestock and Rural Development - Togo',
-                'Ministry of Agrarian Policy and Food, Partial Credit Guarantee Fund',
-                'Ministry of Agriculture and Forestry - Sierra Leone, Ministry of Agricultural Development - Chad, Ministry of Food and Agriculture - Ghana',
-                'Ministère de la Santé Publique',
-                'Department of Agriculture',
-                'Council for Development and Reconstruction',
-                'Aga Khan Foundation USA, The United Nations Office for Project Services',
-                'The Tree Crops Development Authority (TCDA), The Ghana Cocoa Board (COCOBOD)',
-                'Ministry of Agriculture and Rural Development',
-                'Directorate General of Forestry (OGM)',
-                'Forestry and Wildlife Committee of the Ministry of Ecology and Natural Resources',
-                "Caisse Nationale de Securité Sociale, Agence pour le Développement Agricole, Ministère de la Transition Energétique et du Développement Durable (MTEDD), Agence Nationale des Eaux et Forêts (ANEF), Ministère de l'Agriculture, de la Pêche Maritime, du Développement Rural et des Eaux et Forêts, Direction Générale de la Météorologie (DGM), Ministry of Economy and Finance, Ministère de l’Équipement et de l’Eau (MEE), Agence Nationale de Développement des Zones Oasiennes et Arganier (ANDZOA)",
-                'Hunan Provincial Department of Agriculture and Rural Affairs',
-                'Ministry of Agriculture and Food Industry',
-                'Ministry of Agriculture, Irrigation, Natural Resources and Livestock, Ministry of Agriculture',
-                'Department of Agriculture - Bureau of Fisheries and Aquatic Resources'
-            ],
-            st.session_state.implementer
+        st.session_state.organization = st.multiselect(
+            'Organization(s)',
+            ORGANIZATIONS,
+            st.session_state.organization
         )
-        st.session_state.subtopic = st.multiselect(
-            'Subtopic(s)',
-            [
-                'Agricultural Extension, Research, and Other Support Activities',
-                'Public Administration - Agriculture, Fishing & Forestry',
-                'Irrigation and Drainage',
-                'Fisheries',
-                'Other Water Supply, Sanitation and Waste Management',
-                'Tourism',
-                'Public Administration - Transportation',
-                'Aviation',
-                'Other Agriculture, Fishing and Forestry',
-                'Agricultural markets, commercialization and agri-business',
-                'Crops',
-                'Livestock',
-                'Public Administration - Industry, Trade and Services',
-                'Public Administration - Water, Sanitation and Waste Management',
-                'Water Supply',
-                'Sanitation',
-                'ICT Services',
-                'Forestry',
-                'Other Public Administration',
-                'Social Protection',
-                'Health'
-            ],
-            st.session_state.subtopic
+        st.session_state.topic = st.multiselect(
+            'Topic(s)',
+            TOPICS,
+            st.session_state.topic
         )
 
 # Define function to search the knowledge base using a query and selected filters
-def search_knowledge_base(query, type, year, country, region, implementer, subtopic):
+def search_knowledge_base(query, type, year, country, region, organization, topic):
     # Get the embedding of the query
     embedding = get_embedding(query)
     # generate the filter dictionary
@@ -275,10 +155,10 @@ def search_knowledge_base(query, type, year, country, region, implementer, subto
         filter_dict["country"] = {"$in": country}
     if region is not []:
         filter_dict["region"] = {"$in": region}
-    if implementer is not []:
-        filter_dict["implementer"] = {"$in": implementer}
-    if subtopic is not []:
-        filter_dict["subtopic"] = {"$in": subtopic}
+    if organization is not []:
+        filter_dict["implementer"] = {"$in": organization}
+    if topic is not []:
+        filter_dict["subtopic"] = {"$in": topic}
     # Query the knowledge base index
     try:
         top_k_matches = index.query(
@@ -336,7 +216,6 @@ def call_tool(tool_call, functions):
     return results
 
 # Define function to call Chat Completion API with function and return response
-#@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
 def chat_completion_with_function(messages, tools, tool_choice, model, functions):
     # Try to call Chat Completion API to generate response
     try:
@@ -385,13 +264,9 @@ tools = [
                         "items": {
                             "type": "string"
                         },
-                        "description": """
+                        "description": f"""
                             Resource type(s). Options include:
-                            [
-                                'use case', 
-                                'dataset', 
-                                'learning'
-                            ]
+                            {TYPES}
                         """
                     },
                     "year": {
@@ -399,18 +274,9 @@ tools = [
                         "items": {
                             "type": "string"
                         },
-                        "description": """
+                        "description": f"""
                             The year(s) that the learning/use case/dataset covers. Options include:
-                            [
-                                '2023', 
-                                '2024', 
-                                '2025', 
-                                '2026', 
-                                '2027', 
-                                '2028', 
-                                '2029', 
-                                '2030'
-                            ]
+                            {YEARS}
                         """
                     },
                     "country": {
@@ -418,27 +284,9 @@ tools = [
                         "items": {
                             "type": "string"
                         },
-                        "description": """
+                        "description": f"""
                             The country(s) involved. Options include:
-                            [
-                                'Ukraine',
-                                'Kosovo',
-                                'Mauritius',
-                                'Tunisia',
-                                'Western and Central Africa',
-                                'Chad',
-                                'Philippines',
-                                'Lebanon',
-                                'Afghanistan',
-                                'Ghana',
-                                'Central African Republic',
-                                'Turkiye',
-                                'Kazakhstan',
-                                'Morocco',
-                                'China',
-                                'Moldova',
-                                'Eastern and Southern Africa'
-                            ]
+                            {COUNTRIES}
                         """
                     },
                     "region": {
@@ -446,16 +294,9 @@ tools = [
                         "items": {
                             "type": "string"
                         },
-                        "description": """
+                        "description": f"""
                             The region(s) involved. Options include:
-                            [
-                                'Europe and Central Asia',
-                                'Eastern and Southern Africa',
-                                'Middle East and North Africa',
-                                'Western and Central Africa',
-                                'East Asia and Pacific',
-                                'South Asia'
-                            ]
+                            {REGIONS}
                         """
                     },
                     "implementer": {
@@ -463,30 +304,9 @@ tools = [
                         "items": {
                             "type": "string"
                         },
-                        "description": """
-                            The implementer(s) involved. Options include:
-                            [
-                                'Ministry of Agrarian Policy and Food, Business Development Fund',
-                                'Ministry of Agriculture, Forestry and Rural Development',
-                                'Airports of Mauritius Co. Ltd (AML), Airport of Rodrigues Limited (ARL)',
-                                'Office des Céréales',
-                                'Ministry of Agriculture - Niger, Ministry of Agriculture, Hydro-Agricultural Developments and Mechanization  - Burkina Faso, Ministry of Rural Development - Mali, Ministry of Agriculture, Livestock and Rural Development - Togo',
-                                'Ministry of Agrarian Policy and Food, Partial Credit Guarantee Fund',
-                                'Ministry of Agriculture and Forestry - Sierra Leone, Ministry of Agricultural Development - Chad, Ministry of Food and Agriculture - Ghana',
-                                'Ministère de la Santé Publique',
-                                'Department of Agriculture',
-                                'Council for Development and Reconstruction',
-                                'Aga Khan Foundation USA, The United Nations Office for Project Services',
-                                'The Tree Crops Development Authority (TCDA), The Ghana Cocoa Board (COCOBOD)',
-                                'Ministry of Agriculture and Rural Development',
-                                'Directorate General of Forestry (OGM)',
-                                'Forestry and Wildlife Committee of the Ministry of Ecology and Natural Resources',
-                                "Caisse Nationale de Securité Sociale, Agence pour le Développement Agricole, Ministère de la Transition Energétique et du Développement Durable (MTEDD), Agence Nationale des Eaux et Forêts (ANEF), Ministère de l'Agriculture, de la Pêche Maritime, du Développement Rural et des Eaux et Forêts, Direction Générale de la Météorologie (DGM), Ministry of Economy and Finance, Ministère de l’Équipement et de l’Eau (MEE), Agence Nationale de Développement des Zones Oasiennes et Arganier (ANDZOA)",
-                                'Hunan Provincial Department of Agriculture and Rural Affairs',
-                                'Ministry of Agriculture and Food Industry',
-                                'Ministry of Agriculture, Irrigation, Natural Resources and Livestock, Ministry of Agriculture',
-                                'Department of Agriculture - Bureau of Fisheries and Aquatic Resources'
-                            ]
+                        "description": f"""
+                            The organization(s) involved. Options include:
+                            {ORGANIZATIONS}
                         """
                     },
                     "subtopic": {
@@ -494,31 +314,9 @@ tools = [
                         "items": {
                             "type": "string"
                         },
-                        "description": """
-                            The agricultural subtopic(s) involved. Options include:
-                            [
-                                'Agricultural Extension, Research, and Other Support Activities',
-                                'Public Administration - Agriculture, Fishing & Forestry',
-                                'Irrigation and Drainage',
-                                'Fisheries',
-                                'Other Water Supply, Sanitation and Waste Management',
-                                'Tourism',
-                                'Public Administration - Transportation',
-                                'Aviation',
-                                'Other Agriculture, Fishing and Forestry',
-                                'Agricultural markets, commercialization and agri-business',
-                                'Crops',
-                                'Livestock',
-                                'Public Administration - Industry, Trade and Services',
-                                'Public Administration - Water, Sanitation and Waste Management',
-                                'Water Supply',
-                                'Sanitation',
-                                'ICT Services',
-                                'Forestry',
-                                'Other Public Administration',
-                                'Social Protection',
-                                'Health'
-                            ]
+                        "description": f"""
+                            The agricultural topic(s) involved. Options include:
+                            {TOPICS}
                         """
                     }
                 }
@@ -610,115 +408,34 @@ elif "messages" in st.session_state:
                     with col1:
                         st.multiselect(
                             'Type(s)',
-                            [
-                                'use case', 
-                                'dataset', 
-                                'learning'
-                            ],
+                            TYPES,
                             st.session_state.type
                         )                
                         st.multiselect(
                             'Year(s)',
-                            [
-                                '2023', 
-                                '2024', 
-                                '2025', 
-                                '2026', 
-                                '2027', 
-                                '2028', 
-                                '2029', 
-                                '2030'
-                            ],
+                            YEARS,
                             st.session_state.year
                         )
                     with col2:
                         st.multiselect(
                             'Country(s)',
-                            [
-                                'Ukraine',
-                                'Kosovo',
-                                'Mauritius',
-                                'Tunisia',
-                                'Western and Central Africa',
-                                'Chad',
-                                'Philippines',
-                                'Lebanon',
-                                'Afghanistan',
-                                'Ghana',
-                                'Central African Republic',
-                                'Turkiye',
-                                'Kazakhstan',
-                                'Morocco',
-                                'China',
-                                'Moldova',
-                                'Eastern and Southern Africa'
-                            ],
+                            COUNTRIES,
                             st.session_state.country
                         )
                         st.multiselect(
                             'Region(s)',
-                            [
-                                'Europe and Central Asia',
-                                'Eastern and Southern Africa',
-                                'Middle East and North Africa',
-                                'Western and Central Africa',
-                                'East Asia and Pacific',
-                                'South Asia'
-                            ],
+                            REGIONS,
                             st.session_state.region
                         )
                     with col3:
                         st.multiselect(
                             'Implementer(s)',
-                            [
-                                'Ministry of Agrarian Policy and Food, Business Development Fund',
-                                'Ministry of Agriculture, Forestry and Rural Development',
-                                'Airports of Mauritius Co. Ltd (AML), Airport of Rodrigues Limited (ARL)',
-                                'Office des Céréales',
-                                'Ministry of Agriculture - Niger, Ministry of Agriculture, Hydro-Agricultural Developments and Mechanization  - Burkina Faso, Ministry of Rural Development - Mali, Ministry of Agriculture, Livestock and Rural Development - Togo',
-                                'Ministry of Agrarian Policy and Food, Partial Credit Guarantee Fund',
-                                'Ministry of Agriculture and Forestry - Sierra Leone, Ministry of Agricultural Development - Chad, Ministry of Food and Agriculture - Ghana',
-                                'Ministère de la Santé Publique',
-                                'Department of Agriculture',
-                                'Council for Development and Reconstruction',
-                                'Aga Khan Foundation USA, The United Nations Office for Project Services',
-                                'The Tree Crops Development Authority (TCDA), The Ghana Cocoa Board (COCOBOD)',
-                                'Ministry of Agriculture and Rural Development',
-                                'Directorate General of Forestry (OGM)',
-                                'Forestry and Wildlife Committee of the Ministry of Ecology and Natural Resources',
-                                "Caisse Nationale de Securité Sociale, Agence pour le Développement Agricole, Ministère de la Transition Energétique et du Développement Durable (MTEDD), Agence Nationale des Eaux et Forêts (ANEF), Ministère de l'Agriculture, de la Pêche Maritime, du Développement Rural et des Eaux et Forêts, Direction Générale de la Météorologie (DGM), Ministry of Economy and Finance, Ministère de l’Équipement et de l’Eau (MEE), Agence Nationale de Développement des Zones Oasiennes et Arganier (ANDZOA)",
-                                'Hunan Provincial Department of Agriculture and Rural Affairs',
-                                'Ministry of Agriculture and Food Industry',
-                                'Ministry of Agriculture, Irrigation, Natural Resources and Livestock, Ministry of Agriculture',
-                                'Department of Agriculture - Bureau of Fisheries and Aquatic Resources'
-                            ],
+                            ORGANIZATIONS,
                             st.session_state.implementer
                         )
                         st.multiselect(
                             'Subtopic(s)',
-                            [
-                                'Agricultural Extension, Research, and Other Support Activities',
-                                'Public Administration - Agriculture, Fishing & Forestry',
-                                'Irrigation and Drainage',
-                                'Fisheries',
-                                'Other Water Supply, Sanitation and Waste Management',
-                                'Tourism',
-                                'Public Administration - Transportation',
-                                'Aviation',
-                                'Other Agriculture, Fishing and Forestry',
-                                'Agricultural markets, commercialization and agri-business',
-                                'Crops',
-                                'Livestock',
-                                'Public Administration - Industry, Trade and Services',
-                                'Public Administration - Water, Sanitation and Waste Management',
-                                'Water Supply',
-                                'Sanitation',
-                                'ICT Services',
-                                'Forestry',
-                                'Other Public Administration',
-                                'Social Protection',
-                                'Health'
-                            ],
+                            TOPICS,
                             st.session_state.subtopic
                         )
                     # Redisplay (persistent) search button that triggers the assistant response
@@ -781,7 +498,7 @@ elif len(st.session_state.messages) == 4 and st.session_state.messages[-2]["cont
                 st.session_state.messages, 
                 tools=tools, 
                 tool_choice='auto', 
-                model=GPT_MODEL,
+                model=LLM_MODEL,
                 functions=functions)
             # Remove the system prompt from the chat history
             st.session_state.messages.pop(0)
@@ -800,8 +517,8 @@ elif len(st.session_state.messages) == 5 and st.session_state.clicked and st.ses
                 year=[],
                 country=[],
                 region=[],
-                implementer=[],
-                subtopic=[]
+                organization=[],
+                topic=[]
             )
         # Display the matches (with streaming effect)    
         st.write_stream(
@@ -829,7 +546,7 @@ if len(st.session_state.messages) > 6 and st.session_state.messages[-2]["content
         st.session_state.messages, 
         tools=tools, 
         tool_choice='auto', 
-        model=GPT_MODEL,
+        model=LLM_MODEL,
         functions=functions)
     # Remove the system prompt from the chat history
     st.session_state.messages.pop(0)
@@ -853,7 +570,7 @@ if len(st.session_state.messages) > 8 and st.session_state.messages[-2]["content
     assistant = client.beta.assistants.create(
         name="AgriFood Data Lab",
         instructions="Use the conversation history to call the ",
-        model=GPT_MODEL,
+        model=LLM_MODEL,
     )
     
     # Add the assistant message to the chat history
