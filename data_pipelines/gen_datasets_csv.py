@@ -1,4 +1,4 @@
-### GENERATE DATASETS FILE ###
+### GENERATE DATASETS CSV FROM WORLD BANK DATASETS API ###
 
 import requests
 from tqdm import tqdm
