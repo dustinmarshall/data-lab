@@ -1,3 +1,5 @@
+### GENERATE VIDEO ID LIST FROM YOUTUBE CHANNEL ###
+
 from googleapiclient.discovery import build
 from youtube_transcript_api import YouTubeTranscriptApi
 from openai import OpenAI
