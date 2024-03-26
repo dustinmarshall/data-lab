@@ -1,12 +1,10 @@
 ### DELETE ASSISTANTS AND FILES ###
 
-from dotenv import load_dotenv
 from openai import OpenAI
-client = OpenAI()
+from settings import OPENAI_API_KEY
 
-# Load api key from env
-load_dotenv()
-api_key = os.getenv("OPENAI_API_KEY")
+# Initialize OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 my_assistants = client.beta.assistants.list(
     limit="100"

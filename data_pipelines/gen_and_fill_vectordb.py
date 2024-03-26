@@ -4,21 +4,20 @@
 import os
 import csv
 from tqdm import tqdm
-import streamlit as st
 from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
 import time
 import ast
-
-# Load api key from env
-pinecone_api_key = st.secrets["PINECONE_API_KEY"]
-api_key = st.secrets["OPENAI_API_KEY"]
+from settings import (
+    OPENAI_API_KEY,
+    PINECONE_API_KEY,
+)
 
 # Initialize OpenAI client
-client = OpenAI(api_key=api_key)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Initialize Pinecone client
-pc = Pinecone(api_key=pinecone_api_key)
+pc = Pinecone(api_key=PINECONE_API_KEY)
 
 # Delete the index
 print("Deleting the index...")
@@ -49,7 +48,7 @@ def get_embedding(text, model="text-embedding-3-small"):
     
 # Load wb_ag_ext_usecases.csv file
 dirname = os.getcwd()
-file_path = os.path.join(dirname, 'data/wb_ag_usecases.csv')
+file_path = os.path.join(dirname, 'src/datalab/data/wb_ag_usecases.csv')
 
 with open(file_path, mode='r', encoding='utf-8') as file:
     reader = csv.DictReader(file)
@@ -78,11 +77,11 @@ with open(file_path, mode='r', encoding='utf-8') as file:
                             'description': entry['description'],
                             'type': 'use case',
                             'project': entry['project'],
-                            'organization': entry['implementer'],
+                            'organization': entry['organization'],
                             'region': entry['region'],
                             'country': entry['country'],
-                            'documents': ast.literal_eval(entry['document']),
-                            'topic': ast.literal_eval(entry['sector']),
+                            'document': ast.literal_eval(entry['document']),
+                            'topic': ast.literal_eval(entry['topic']),
                             'year': ast.literal_eval(entry['year']),
                             'contact': ast.literal_eval(entry['contact']),
                             'project_id': entry['id'],
@@ -99,7 +98,7 @@ with open(file_path, mode='r', encoding='utf-8') as file:
                     print("Max retries reached. Moving to the next item.")
              
 # Load wb_ag_ext_papers.csv file       
-file_path = os.path.join(dirname, 'data/wb_ag_ext_papers.csv')
+file_path = os.path.join(dirname, 'src/datalab/data/wb_ag_ext_papers.csv')
 
 with open(file_path, mode='r', encoding='utf-8') as file:
     reader = csv.DictReader(file)
@@ -125,9 +124,9 @@ with open(file_path, mode='r', encoding='utf-8') as file:
                             'description': entry['abstract'],
                             'type': 'learning',
                             'date': entry['date'],
-                            'author(s)': ast.literal_eval(entry['authors']),
-                            'sector(s)': ast.literal_eval(entry['sectors']),
-                            'implementer': entry['implementer'],
+                            'contact': ast.literal_eval(entry['contact']),
+                            'topic': ast.literal_eval(entry['topic']),
+                            'organization': entry['organization'],
                             'url': entry['url']
                         }
                     )
@@ -142,7 +141,7 @@ with open(file_path, mode='r', encoding='utf-8') as file:
                     print("Max retries reached. Moving to the next item.")
                     
 # Load wb_ag_ext_datasets.csv file       
-file_path = os.path.join(dirname, 'data/wb_ag_datasets.csv')
+file_path = os.path.join(dirname, 'src/datalab/data/wb_ag_datasets.csv')
 
 with open(file_path, mode='r', encoding='utf-8') as file:
     reader = csv.DictReader(file)
@@ -168,7 +167,7 @@ with open(file_path, mode='r', encoding='utf-8') as file:
                             'description': entry['description'],
                             'type': 'dataset',
                             'project_id': entry['project_id'],
-                            'file(s)': ast.literal_eval(entry['files'])
+                            'file': ast.literal_eval(entry['file'])
                         }
                     )
                 ])

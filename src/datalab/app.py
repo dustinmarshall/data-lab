@@ -36,10 +36,10 @@ pc = Pinecone(
 index = pc.Index(PINECONE_INDEX)
 
 # Load the AgriFood Data Lab logo and its black version 
-image_path = "images/logo.png"
+image_path = "src/datalab/images/logo.png"
 with open(image_path, "rb") as file:
     img_bytes = file.read()
-image_path_black = "images/logo_black.png"
+image_path_black = "src/datalab/images/logo_black.png"
 with open(image_path_black, "rb") as file:
     img_bytes_black = file.read()
     
@@ -156,9 +156,9 @@ def search_knowledge_base(query, type, year, country, region, organization, topi
     if region is not []:
         filter_dict["region"] = {"$in": region}
     if organization is not []:
-        filter_dict["implementer"] = {"$in": organization}
+        filter_dict["organization"] = {"$in": organization}
     if topic is not []:
-        filter_dict["subtopic"] = {"$in": topic}
+        filter_dict["topic"] = {"$in": topic}
     # Query the knowledge base index
     try:
         top_k_matches = index.query(
@@ -194,7 +194,7 @@ def get_more_information(id):
     for key, value in documents.items():
         documents_string += f" - [{key}]({value})  \n"
     # convert list of strings into comma-seperated string
-    markdown_string = f"Here's all of the information we have on that record in our database:  \n  \n**Title:** {metadata['title']}  \n **Description:** {metadata['description']}  \n **Type:** use case  \n **Project:** {metadata['project']}  \n **Implementer:** {metadata['implementer']}  \n **Region:** {metadata['region']}  \n **Country:** {metadata['country']}  \n**Document(s):** {documents_string}  \n **Subtopic(s):** {', '.join(metadata['subtopic(s)'])}  \n **Year(s):** {', '.join(metadata['year(s)'])}  \n **Contact(s):** {', '.join(metadata['contact(s)'])}  \n **Project ID:** {metadata['project_id']}  \n  \nWould you like use to analyze any of the linked files or search for something else?"
+    markdown_string = f"Here's all of the information we have on that record in our database:  \n  \n**Title:** {metadata['title']}  \n **Description:** {metadata['description']}  \n **Type:** use case  \n **Project:** {metadata['project']}  \n **Organization:** {metadata['organization']}  \n **Region:** {metadata['region']}  \n **Country:** {metadata['country']}  \n**Document(s):** {documents_string}  \n **Topic(s):** {', '.join(metadata['topic'])}  \n **Year(s):** {', '.join(metadata['year'])}  \n **Contact(s):** {', '.join(metadata['contact'])}  \n **Project ID:** {metadata['project_id']}  \n  \nWould you like use to analyze any of the linked files or search for something else?"
     return markdown_string
 
 functions = {
@@ -299,7 +299,7 @@ tools = [
                             {REGIONS}
                         """
                     },
-                    "implementer": {
+                    "organization": {
                         "type": "array",
                         "items": {
                             "type": "string"
@@ -309,7 +309,7 @@ tools = [
                             {ORGANIZATIONS}
                         """
                     },
-                    "subtopic": {
+                    "topic": {
                         "type": "array",
                         "items": {
                             "type": "string"
@@ -429,14 +429,14 @@ elif "messages" in st.session_state:
                         )
                     with col3:
                         st.multiselect(
-                            'Implementer(s)',
+                            'Organization(s)',
                             ORGANIZATIONS,
-                            st.session_state.implementer
+                            st.session_state.organization
                         )
                         st.multiselect(
-                            'Subtopic(s)',
+                            'Topic(s)',
                             TOPICS,
-                            st.session_state.subtopic
+                            st.session_state.topic
                         )
                     # Redisplay (persistent) search button that triggers the assistant response
                     st.button("Search", on_click=click_button)

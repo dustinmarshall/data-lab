@@ -23,7 +23,7 @@
 ```
 #### Deploy locally
 ```bash
-    streamlit run app.py
+    streamlit run src/datalab/app.py
 ```
 
 
