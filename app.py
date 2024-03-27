@@ -36,10 +36,10 @@ pc = Pinecone(
 index = pc.Index(PINECONE_INDEX)
 
 # Load the AgriFood Data Lab logo and its black version 
-image_path = "src/datalab/images/logo.png"
+image_path = "images/logo.png"
 with open(image_path, "rb") as file:
     img_bytes = file.read()
-image_path_black = "src/datalab/images/logo_black.png"
+image_path_black = "images/logo_black.png"
 with open(image_path_black, "rb") as file:
     img_bytes_black = file.read()
     
