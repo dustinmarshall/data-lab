@@ -42,8 +42,6 @@ base_url = 'https://datacatalogapi.worldbank.org/ddhxext/DatasetView?dataset_uni
 simplified_datasets = []
 
 for dataset in tqdm(datasets, desc="Processing datasets"):
-    if dataset.get('source') == "MICRODATA":
-        continue
     dataset_id = dataset.get('dataset_unique_id')
     url = base_url + dataset_id
     response = requests.get(url)

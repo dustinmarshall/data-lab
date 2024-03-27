@@ -48,7 +48,7 @@ def get_embedding(text, model="text-embedding-3-small"):
     
 # Load wb_ag_ext_usecases.csv file
 dirname = os.getcwd()
-file_path = os.path.join(dirname, 'src/datalab/data/wb_ag_usecases.csv')
+file_path = os.path.join(dirname, 'data/wb_ag_usecases.csv')
 
 with open(file_path, mode='r', encoding='utf-8') as file:
     reader = csv.DictReader(file)
@@ -98,7 +98,7 @@ with open(file_path, mode='r', encoding='utf-8') as file:
                     print("Max retries reached. Moving to the next item.")
              
 # Load wb_ag_ext_papers.csv file       
-file_path = os.path.join(dirname, 'src/datalab/data/wb_ag_ext_papers.csv')
+file_path = os.path.join(dirname, 'data/wb_ag_ext_papers.csv')
 
 with open(file_path, mode='r', encoding='utf-8') as file:
     reader = csv.DictReader(file)
@@ -141,7 +141,7 @@ with open(file_path, mode='r', encoding='utf-8') as file:
                     print("Max retries reached. Moving to the next item.")
                     
 # Load wb_ag_ext_datasets.csv file       
-file_path = os.path.join(dirname, 'src/datalab/data/wb_ag_datasets.csv')
+file_path = os.path.join(dirname, 'data/wb_ag_datasets.csv')
 
 with open(file_path, mode='r', encoding='utf-8') as file:
     reader = csv.DictReader(file)
