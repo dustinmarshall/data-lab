@@ -187,7 +187,7 @@ def get_more_information(id):
     metadata = index.fetch(ids=[id])['vectors'][key]['metadata']
     # Format metadata into markdown string
     documents = {}
-    for doc in metadata['document(s)']:
+    for doc in metadata['document']:
         doc = ast.literal_eval('{' + doc + '}')
         documents.update(doc)
     documents_string = ""
