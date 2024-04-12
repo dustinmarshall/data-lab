@@ -59,7 +59,7 @@ def create_projects_df(filename):
                     pdfurl = doc['pdfurl']
                     df.at[index, 'document'][doctype] = pdfurl
 
-    print("saving df to csv...")
+    print("saving df to csv.....")
     df.to_csv(f'data_pipelines/data/{filename}.csv', index=False)
 
 # Run the function on the _projects.csv files
