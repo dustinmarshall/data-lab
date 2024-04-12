@@ -1,16 +1,19 @@
-### GENERATE ASSISTANT FOR GENERATING USE CASES ###
-
 import pandas as pd
 from openai import OpenAI
 import json
 import requests
-from dotenv import load_dotenv
 import os
 import ast
 import time
+from settings import (OPENAI_API_KEY)
 
-csv_input = 'data/wb_ag_ext_projects.csv'
-csv_output = 'data/wb_ag_ext_usecases.csv'
+csv_input = 'data_pipelines/data/marieagnes_projects.csv'
+csv_output = 'data_pipelines/data/marieagnes_usecases.csv'
+
+# Initialize OpenAI client
+client = OpenAI(
+    api_key=OPENAI_API_KEY,
+)
 
 # Function to submit tool outputs
 def submit_tool_outputs(thread_id, run_id, tool_call_id, output):
@@ -25,16 +28,12 @@ def submit_tool_outputs(thread_id, run_id, tool_call_id, output):
 
 # Function to process a document and update the DataFrame
 def process_document(url, id, project, organization, region, country, document, topic, year, contact):
-    
-    # Load api key from env
-    load_dotenv()
-    api_key = os.getenv("OPENAI_API_KEY")
 
     # Read wb_use_case_summaries.csv into wb_use_case_summaries_df
     if os.path.exists(csv_output):
         use_cases_df = pd.read_csv(csv_output)
     else:
-        use_cases_df = pd.DataFrame(columns=['id', 'use_case', 'project', 'description', 'implementer', 'region', 'country', 'documents', 'sectors', 'years', 'contacts'])
+        use_cases_df = pd.DataFrame(columns=['id', 'use_case', 'project', 'description', 'organization', 'region', 'country', 'document', 'topic', 'year', 'contact'])
 
     # Download the file
     response = requests.get(url)
@@ -43,7 +42,7 @@ def process_document(url, id, project, organization, region, country, document, 
         file.write(response.content)
 
     # Initialize OpenAI client
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=OPENAI_API_KEY)
 
     # Upload the file to OpenAI
     print("Uploading files...")
@@ -237,23 +236,23 @@ if os.path.exists(csv_output):
 else:
     use_cases_df = pd.DataFrame(columns=['id', 'use_case', 'project', 'description', 'organization', 'region', 'country', 'document', 'topic', 'year', 'contact'])
 
-# iterate through wb_ag_projects_df and process each document
+# iterate through projects df and process each document
 for index, row in projects_df.iterrows():
     if not use_cases_df['id'].isin([row['id']]).any():
         # Check if projectdocs is a string and convert it to a dictionary
-        if isinstance(row['documents'], str):
+        if isinstance(row['document'], str):
             try:
-                documents = ast.literal_eval(row['documents'])
+                document = ast.literal_eval(row['document'])
             except ValueError:
                 # Handle the exception if the string cannot be converted to a dictionary
                 continue
-        for doctype, url in documents.items():
-            if doctype == 'Project Paper' or doctype == 'Implementation Completion and Results Report' or doctype == 'Implementation Completion Report Review': 
+        for doctype, url in document.items():
+            if doctype == 'Project Appraisal Document' or doctype == 'Project Paper' or doctype == 'Implementation Completion and Results Report' or doctype == 'Implementation Completion Report Review': 
                 print("Processing document: ", doctype, " for project: ", row['id'])
                 process_document(url, row['id'], row['project'], row['organization'], row['region'], row['country'], row['document'], row['topic'], row['year'], row['contact'])
                 #time.sleep(300)
                 break
-            elif doctype == 'Project Appraisal Document' or doctype == 'Project Information Document':
+            elif doctype == 'Project Information Document':
                 print("Processing document: ", doctype, " for project: ", row['id'])
                 process_document(url, row['id'], row['project'], row['organization'], row['region'], row['country'], row['document'], row['topic'], row['year'], row['contact'])
                 #time.sleep(300)

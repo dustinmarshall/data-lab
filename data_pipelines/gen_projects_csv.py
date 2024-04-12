@@ -1,26 +1,67 @@
-### GENERATE PROJECTS CSV FROM WORLD BANK PROJECTS API ###
+import os
+import pandas as pd
+import requests
+from tqdm import tqdm
+import numpy as np
 
 # Function to create wb_ag_projects_df from WB Projects and Documents API
-def create_ag_projects_df():
+def create_projects_df(filename):
+
+    # import csv file as dataframe
+    df = pd.read_csv(f'data_pipelines/data/{filename}.csv')
     
-    print("creating wb_ag_projects_df from WB Projects API...")
-    wb_ag_projects = requests.get('https://search.worldbank.org/api/v2/projects?rows=10000&mjsectorcode_exact=AX').json()['projects']
-    wb_ag_projects_df = pd.DataFrame.from_dict(wb_ag_projects, orient='index')
+    print("filling out df using WB Projects API...")
+    for index, row in tqdm(df.iterrows(), total=df.shape[0]):
+        project = requests.get(f"https://search.worldbank.org/api/v2/projects?format=json&fl=*&id={row['id']}").json()['projects']
+        if len(project) > 0:
+            for key, value in project[row['id']].items():
+                print(key)
+                if key == "regionname":
+                    if 'region' not in df.columns:
+                        df['region'] = np.nan
+                    df.at[index, "region"] = value
+                elif key == "countryname":
+                    if 'country' not in df.columns:
+                        df['country'] = np.nan
+                    df.at[index, "country"] = value[0]
+                elif key == "project_name":
+                    if 'project' not in df.columns:
+                        df['project'] = np.nan
+                    df.at[index, "project"] = value
+                elif key == "team_lead_details":
+                    if 'contact' not in df.columns:
+                        df['contact'] = np.nan
+                    df.at[index, "contact"] = value[0]
+                elif key == "borrower":
+                    if 'organization' not in df.columns:
+                        df['organization'] = np.nan
+                    df.at[index, "organization"] = value
+                elif key == "fiscalyear":
+                    if 'year' not in df.columns:
+                        df['year'] = np.nan
+                    df.at[index, "year"] = value
+                elif key == "sector1":
+                    if 'topic' not in df.columns:
+                        df['topic'] = np.nan
+                    df.at[index, "topic"] = value["Name"]
+        else:
+            df.drop(index, inplace=True)
     
-    print("adding projectdocs from to WB Documents API wb_ag_projects_df...")
-    for index, row in tqdm(wb_ag_projects_df.iterrows(), total=wb_ag_projects_df.shape[0]):
-        wb_ag_projects_df.at[index, 'projectdocs'] = {}
+    print("adding project docs to df using WB Documents API...")
+    df['document'] = None
+    for index, row in tqdm(df.iterrows(), total=df.shape[0]):
+        df.at[index, 'document'] = {}
         response = requests.get(f"https://search.worldbank.org/api/v2/wds?format=json&fl=pdfurl,docty&proid={row['id']}").json()
         if response:
             for doc in reversed(response['documents'].values()):
                 if 'docty' in doc and 'pdfurl' in doc:
                     doctype = doc['docty']
                     pdfurl = doc['pdfurl']
-                    wb_ag_projects_df.at[index, 'projectdocs'][doctype] = pdfurl
+                    df.at[index, 'document'][doctype] = pdfurl
 
-    print("saving wb_ag_projects_df to csv...")
-    wb_ag_projects_df.to_csv('data/wb_ag_projects.csv', index=False)
+    print("saving df to csv...")
+    df.to_csv(f'data_pipelines/data/{filename}.csv', index=False)
 
-# Check if wb_ag_projects.csv exists, if not create it
-if not os.path.exists('data/wb_ag_projects.csv'):
-    create_ag_projects_df()
+# Run the function on the _projects.csv files
+create_projects_df('dddag_projects')
+create_projects_df('marieagnes_projects')
