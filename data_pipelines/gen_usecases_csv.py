@@ -7,8 +7,8 @@ import ast
 import time
 from settings import (OPENAI_API_KEY)
 
-csv_input = 'data_pipelines/data/marieagnes_projects.csv'
-csv_output = 'data_pipelines/data/marieagnes_usecases.csv'
+csv_input = 'data_pipelines/data/dddag_projects.csv'
+csv_output = 'data_pipelines/data/dddag_usecases.csv'
 
 # Initialize OpenAI client
 client = OpenAI(
